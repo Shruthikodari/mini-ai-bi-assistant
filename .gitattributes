@@ -1,0 +1,9 @@
+# Normalise text files, but keep Windows scripts as CRLF
+* text=auto
+*.bat text eol=crlf
+
+# Store the source data byte-for-byte (never normalise line endings)
+data/*.csv -text
+
+# Binary files
+*.png binary

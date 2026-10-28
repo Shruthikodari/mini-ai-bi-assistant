@@ -1,0 +1,39 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python caches and build artefacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Test and coverage output
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Generated SQLite database (rebuild with: python -m backend.database)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Secrets and environment files
+.env
+.env.*
+.streamlit/secrets.toml
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+tmp/
+
+# Editor / OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
