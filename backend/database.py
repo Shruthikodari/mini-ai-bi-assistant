@@ -13,6 +13,7 @@ Run `python -m backend.database` to (re)build data/sales.db from data/sales.csv.
 """
 
 import sqlite3
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -145,9 +146,57 @@ def build_database(csv_path: str | Path = CSV_PATH, db_path: str | Path = DB_PAT
         conn.close()
 
 
-if __name__ == "__main__":
-    summary = build_database()
+class DatabaseInitError(RuntimeError):
+    """Raised when the database cannot be built from the CSV."""
+
+
+def database_is_ready(db_path: str | Path = DB_PATH) -> bool:
+    """True if the file exists and contains the valid_sales view."""
+    if not Path(db_path).exists():
+        return False
+    try:
+        conn = sqlite3.connect(f"{Path(db_path).resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            conn.execute("SELECT 1 FROM valid_sales LIMIT 1")
+        finally:
+            conn.close()
+        return True
+    except sqlite3.Error:
+        return False
+
+
+def ensure_database(csv_path: str | Path = CSV_PATH, db_path: str | Path = DB_PATH) -> dict | None:
+    """Build the database from the CSV only if it is missing or incomplete.
+
+    Returns the build summary, or None if a usable database already existed.
+    Raises DatabaseInitError with a clear message if the build fails.
+    """
+    if database_is_ready(db_path):
+        return None
+    if not Path(csv_path).exists():
+        raise DatabaseInitError(f"Cannot build the database: CSV not found at {csv_path}")
+    try:
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        return build_database(csv_path, db_path)
+    except Exception as exc:  # report any failure (bad columns, disk error, ...) clearly
+        raise DatabaseInitError(f"Cannot build the database from {csv_path}: {exc}") from exc
+
+
+def main() -> int:
+    """Command line: (re)build the database. Exit code 1 on failure."""
+    try:
+        if not Path(CSV_PATH).exists():
+            raise DatabaseInitError(f"CSV not found at {CSV_PATH}")
+        summary = build_database(CSV_PATH, DB_PATH)
+    except Exception as exc:
+        print(f"Database initialisation failed: {exc}", file=sys.stderr)
+        return 1
     print(f"Loaded {summary['total_rows']} rows into {DB_PATH}")
     print(f"Valid: {summary['valid_rows']}, excluded: {summary['excluded_rows']}")
     for row in summary["excluded"]:
         print(f"  {row['transaction_id']}: {row['invalid_reason']}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

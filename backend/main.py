@@ -4,9 +4,14 @@ Flow for POST /ask:
     question -> question_parser (intent + months) -> analytics (fixed SQL) -> answer
 
 Run with:  uvicorn backend.main:app --reload
+
+On startup the SQLite database is built from data/sales.csv if it is missing,
+so a fresh server (e.g. on Render) is ready before it accepts requests.
 """
 
+import logging
 import sqlite3
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -14,7 +19,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, StringConstraints
 
 from backend import analytics, transactions
-from backend.database import DB_PATH, get_data_quality_summary
+from backend.database import CSV_PATH, DB_PATH, ensure_database, get_data_quality_summary
 from backend.question_parser import (
     COMPARE_MONTHS,
     MONTHLY_TREND,
@@ -25,9 +30,29 @@ from backend.question_parser import (
     parse_question,
 )
 
+logger = logging.getLogger("uvicorn.error")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Build the database before serving requests if it does not exist yet.
+
+    If building fails, the exception stops the server from starting, with
+    a clear message in the log, instead of serving 503 errors forever.
+    """
+    summary = ensure_database(CSV_PATH, DB_PATH)
+    if summary is None:
+        logger.info("Using existing database at %s", DB_PATH)
+    else:
+        logger.info("Built database at %s: %s rows, %s valid, %s excluded", DB_PATH,
+                    summary["total_rows"], summary["valid_rows"], summary["excluded_rows"])
+    yield
+
+
 app = FastAPI(
     title="Mini AI Business Intelligence Assistant",
     description="Ask questions about sales data. Answers come from fixed SQL queries.",
+    lifespan=lifespan,
 )
 
 

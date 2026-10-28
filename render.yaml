@@ -1,0 +1,16 @@
+# Render Blueprint: FastAPI backend on a free web service.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: sales-intelligence-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # Rebuild the SQLite database from data/sales.csv, then start the API.
+    # If the build fails, `&&` stops here and the deploy fails with the error in the log.
+    startCommand: python -m backend.database && uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.8

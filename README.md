@@ -18,7 +18,7 @@ Built for a Graduate Engineer Trainee selection challenge with Python, FastAPI, 
   - **Ask AI** (home): question box, five suggested questions, answers with charts and supporting figures, a "How this answer was calculated" section, session history, KPI cards, a monthly revenue chart and factual business insights.
   - **Analytics**: KPI cards, monthly revenue trend with a table, all seven products ranked, the four regions compared (exact values on every bar), business highlights and a data-quality summary.
   - **Data Explorer**: all 51 original transactions (valid and excluded) with search, region/product/status/month filters, sorting, pagination, highlighted excluded rows with their reasons, and CSV export of the filtered records.
-- **196 automated tests** covering cleaning, the database, analytics, the interpreter, the API, transaction browsing and all three UI pages.
+- **209 automated tests** covering cleaning, the database, analytics, the interpreter, the API, transaction browsing and all three UI pages.
 
 ## Technology stack
 
@@ -52,7 +52,7 @@ mini-ai-bi-assistant/
 │   ├── api_client.py        # HTTP calls to FastAPI + friendly error messages
 │   ├── presentation.py      # Turns API data into tables and charts (no calculations)
 │   └── styles.css           # Visual styling (layout, typography, components)
-├── tests/                   # Pytest suite (196 tests)
+├── tests/                   # Pytest suite (209 tests)
 ├── data/
 │   ├── sales.csv            # Source data (never modified by the app)
 │   └── sales.db             # Generated SQLite database (git-ignored)
@@ -62,6 +62,7 @@ mini-ai-bi-assistant/
 │   ├── INTERVIEW_NOTES.md
 │   └── screenshots/
 ├── .streamlit/config.toml   # Theme (colours, Inter font, radii), hides error details
+├── render.yaml              # Render blueprint for the free backend deployment
 ├── run_app.bat              # Starts API + UI (Windows)
 ├── start_api.bat
 ├── start_ui.bat
@@ -155,13 +156,15 @@ The UI expects the API at `http://127.0.0.1:8000`. To use a different address, s
 set BI_API_URL=http://127.0.0.1:9000
 ```
 
+If the database file is missing when the API starts, it is built from `data/sales.csv` automatically before the first request is served.
+
 ## Running the tests
 
 ```bat
 python -m pytest
 ```
 
-Expected result: `196 passed`. The tests build temporary databases, so they never touch `data/sales.db`. They do read the real `data/sales.csv` to check the actual figures.
+Expected result: `209 passed`. The tests build temporary databases, so they never touch `data/sales.db`. They do read the real `data/sales.csv` to check the actual figures.
 
 | Test file | Tests | Covers |
 |---|---|---|
@@ -172,6 +175,64 @@ Expected result: `196 passed`. The tests build temporary databases, so they neve
 | `test_api.py` | 23 | Every endpoint and status code, SQL text in questions, missing database, `/summary` vs direct SQL |
 | `test_transactions.py` | 30 | Filters, search, combined filters, sorting, pagination, invalid rows, parameter validation, SQL text in filters |
 | `test_frontend.py` | 53 | API client errors, chart/table helpers, CSV export, and all three pages via `AppTest` |
+| `test_deployment.py` | 13 | Database built on startup when missing, clear failure without the CSV, CLI exit codes, `render.yaml`, backend URL setting |
+
+## Free deployment
+
+The backend runs on a **Render free web service** and the frontend on **Streamlit Community Cloud**. Neither needs a paid plan or an API key.
+
+```
+Browser ──> Streamlit Community Cloud (ui/streamlit_app.py)
+                │  HTTPS, BI_API_URL
+                ▼
+            Render free web service (FastAPI + SQLite rebuilt from data/sales.csv)
+```
+
+### Step 1: push the project to GitHub
+
+Both services deploy from a GitHub repository. `data/sales.csv` must be committed; `data/sales.db` is not, because it is rebuilt on the server.
+
+### Step 2: deploy the backend on Render
+
+1. Sign in at https://render.com with GitHub.
+2. Choose **New → Blueprint**, select the repository, and confirm. Render reads `render.yaml`:
+
+   | Setting | Value |
+   |---|---|
+   | Plan | Free |
+   | Runtime | Python 3.11.8 (`PYTHON_VERSION`) |
+   | Build command | `pip install -r requirements.txt` |
+   | Start command | `python -m backend.database && uvicorn backend.main:app --host 0.0.0.0 --port $PORT` |
+   | Health check | `/health` |
+
+   You can also create a **Web Service** by hand with the same build and start commands.
+3. When the deploy finishes, open `https://<your-service>.onrender.com/health`. It should return `{"status":"ok"}`. The interactive API docs are at `/docs`.
+
+How the start command works:
+
+- `python -m backend.database` rebuilds `data/sales.db` from `data/sales.csv` using the normal cleaning rules. If it fails (for example, the CSV is missing), it prints `Database initialisation failed: …`, exits with code 1, and `&&` stops uvicorn from starting, so the deploy fails with the reason in the log.
+- `uvicorn` then starts the API on the port Render provides. As a second safeguard, the API also builds the database at startup if the file is missing, and refuses to start if that fails.
+- Render's free file system is temporary, which is fine here: the database is rebuilt from the CSV on every start, so the figures are always the same.
+
+### Step 3: deploy the frontend on Streamlit Community Cloud
+
+1. Sign in at https://share.streamlit.io with GitHub and choose **Create app → Deploy a public app from GitHub**.
+2. Repository: your repo. Branch: `main`. **Main file path: `ui/streamlit_app.py`.**
+3. Under **Advanced settings**, choose Python 3.11 and add this secret (use your Render URL, without a trailing slash):
+
+   ```toml
+   BI_API_URL = "https://<your-service>.onrender.com"
+   ```
+
+4. Deploy. The app reads `BI_API_URL` from an environment variable first, then from Streamlit secrets, and falls back to `http://127.0.0.1:8000` for local development. The theme comes from `.streamlit/config.toml` in the repo.
+
+The frontend calls the backend from Streamlit's server, not from the visitor's browser, so no CORS configuration is needed.
+
+### Free-tier behaviour
+
+- A Render free service **sleeps after about 15 minutes without traffic**. The first request after that can take up to a minute while it wakes up and rebuilds the database. The UI waits up to 60 seconds (configurable with `BI_API_TIMEOUT`), and if the request still fails it shows "A hosted server on a free plan may need a minute to wake up; please try again shortly."
+- Streamlit Community Cloud apps also sleep when unused and show a "wake up" button.
+- Opening `https://<your-service>.onrender.com/health` before a demo wakes the backend in advance.
 
 ## Example questions
 
@@ -362,6 +423,7 @@ Revenue = Quantity × Unit_price − Discount_amount
 - **CSV export** is limited to 500 rows (the API's maximum page size); the dataset has 51.
 - **The UI layout was checked only in headless Chrome** at desktop (1440 px), laptop (1024 px) and phone (390 px) widths. It has not been tested on real mobile devices or other browsers.
 - **The Inter font loads from a CDN (jsDelivr).** Without internet access, the UI falls back to the system sans-serif font.
+- **Free hosting:** the deployed backend sleeps when idle, so the first request after a pause is slow (see "Free-tier behaviour"). The deployment files were checked locally by running the exact start command in a clean copy of the repository; they have not yet been run on Render or Streamlit Community Cloud themselves.
 - **Scale.** It is designed and tested for a small dataset (51 rows). Larger datasets would work with SQLite, but performance has not been measured.
 
 ## Further documentation

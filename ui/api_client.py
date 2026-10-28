@@ -10,8 +10,25 @@ from dataclasses import dataclass, field
 
 import requests
 
-API_URL = os.environ.get("BI_API_URL", "http://127.0.0.1:8000")
-TIMEOUT_SECONDS = 15
+LOCAL_API_URL = "http://127.0.0.1:8000"
+
+
+def configured_api_url() -> str:
+    """Backend address: BI_API_URL environment variable, then a Streamlit
+    secret of the same name (Streamlit Community Cloud), then localhost."""
+    url = os.environ.get("BI_API_URL", "").strip()
+    if not url:
+        try:
+            import streamlit as st
+            url = str(st.secrets.get("BI_API_URL", "")).strip()
+        except Exception:  # no secrets file configured: normal for local development
+            url = ""
+    return (url or LOCAL_API_URL).rstrip("/")
+
+
+API_URL = configured_api_url()
+# Free hosting can take up to a minute to wake a sleeping backend.
+TIMEOUT_SECONDS = float(os.environ.get("BI_API_TIMEOUT", "60"))
 
 ASK_FIELDS = {"question", "intent", "answer", "data", "chart_type", "data_quality"}
 DATA_QUALITY_FIELDS = {"total_rows", "valid_rows", "excluded_rows", "excluded"}
@@ -43,7 +60,9 @@ def _call(method: str, path: str, base_url: str, payload: dict | None = None,
         return ApiResult(
             ok=False,
             error=f"Cannot reach the analytics server at {base_url}. "
-                  "Please start it with start_api.bat and try again.",
+                  "If you are running locally, start it with start_api.bat. "
+                  "A hosted server on a free plan may need a minute to wake up; "
+                  "please try again shortly.",
         )
     except requests.Timeout:
         return ApiResult(ok=False, error="The analytics server took too long to respond.")
