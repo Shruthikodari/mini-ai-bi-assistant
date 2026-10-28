@@ -119,7 +119,7 @@ All Stage 3 tests passed, but the screenshots showed problems that the tests did
 
 **Not verified:**
 
-- The mobile layout and browsers other than Chrome.
+- Real mobile devices and browsers other than Chrome. The responsive layout was only checked in headless Chrome at 1440, 1024 and 390 px widths.
 - Behaviour with datasets covering several years, or much larger datasets. Only small test fixtures cover multiple years.
 - Performance under load, and running several users at once.
 - A formal accessibility review.
@@ -142,5 +142,5 @@ Using AI does not move responsibility away from the developer. For this project,
 3. **Clearer interpreter feedback:** show users how their question was understood ("Interpreted as: compare March 2026 vs April 2026"), and add stricter matching so nonsense containing "sales" is not answered.
 4. **Data reload:** an endpoint or UI button to rebuild the database after the CSV changes, plus a CSV upload with the same validation.
 5. **Engineering:** GitHub Actions to run the tests on every push, structured logging, caching the data-quality call, and a Dockerfile.
-6. **UI polish:** check and fix the mobile layout, make the suggestion buttons equal height, and add an accessibility review.
+6. **UI polish:** test on real phones and other browsers, bundle the Inter font locally instead of loading it from a CDN, and add an accessibility review.
 7. **Configurable currency:** let the user set the currency instead of showing plain numbers.

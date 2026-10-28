@@ -45,6 +45,7 @@ CREATE TABLE sales (
 CREATE_VALID_SALES_VIEW = """
 CREATE VIEW valid_sales AS
 SELECT
+    source_row,                           -- links each valid sale back to its CSV row
     transaction_id,
     order_date,
     strftime('%Y-%m', order_date) AS order_month,

@@ -184,3 +184,36 @@ def available_years(conn: sqlite3.Connection) -> list[int]:
         """
     ).fetchall()
     return [r["year"] for r in rows]
+
+
+def revenue_share(part: float, total: float) -> float | None:
+    """Percentage of total revenue, or None when the total is zero."""
+    return round(part / total * 100, 2) if total else None
+
+
+def dashboard_summary(conn: sqlite3.Connection) -> dict:
+    """Headline figures for the dashboard, built only from the queries above."""
+    totals = total_revenue(conn)
+    products = top_product(conn)
+    regions = top_region(conn)
+    trend = monthly_revenue_trend(conn)
+
+    def leader(result: dict) -> dict:
+        return {
+            "names": result["top"],
+            "revenue": result["top_revenue"],
+            "share_pct": revenue_share(result["top_revenue"], totals["total_revenue"]),
+        }
+
+    return {
+        "total_revenue": totals["total_revenue"],
+        "transactions": totals["transactions"],
+        "top_product": leader(products),
+        "top_region": leader(regions),
+        # Same rule as the /ask trend answer: zero-revenue months are included.
+        "best_month": max(trend, key=lambda m: m["revenue"]) if trend else None,
+        "weakest_month": min(trend, key=lambda m: m["revenue"]) if trend else None,
+        "monthly_trend": trend,
+        "product_ranking": products["ranking"],
+        "region_ranking": regions["ranking"],
+    }

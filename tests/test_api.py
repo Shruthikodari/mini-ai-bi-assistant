@@ -151,3 +151,62 @@ def test_real_data_examples(client_for, db_path):
     assert ask(client, "Which product generated the highest revenue?").json()["data"]["top"] == ["Monitor"]
     assert ask(client, "Which region has the highest sales?").json()["data"]["top"] == ["South"]
     assert ask(client, "Compare March and April").json()["data"]["difference"] == 16800.0
+
+
+# ---------- /summary ----------
+
+def test_summary_endpoint(client):
+    body = client.get("/summary").json()
+    assert body["total_revenue"] == 420.0
+    assert body["transactions"] == 3
+    assert body["top_product"] == {"names": ["Desk"], "revenue": 290.0, "share_pct": 69.05}
+    assert body["top_region"] == {"names": ["North"], "revenue": 200.0, "share_pct": 47.62}
+    assert body["best_month"]["month"] == "2026-01"
+    assert body["weakest_month"]["month"] == "2026-03"
+    assert [m["revenue"] for m in body["monthly_trend"]] == [200.0, 130.0, 90.0]
+    assert body["data_quality"]["excluded_rows"] == 8
+
+
+def test_summary_with_missing_database_is_503(client_for, tmp_path):
+    assert client_for(tmp_path / "missing.db").get("/summary").status_code == 503
+
+
+def test_summary_real_data_matches_direct_sql(client_for, db_path):
+    build_database(CSV_PATH, db_path)
+    body = client_for(db_path).get("/summary").json()
+
+    conn = sqlite3.connect(db_path)
+    try:
+        total, count = conn.execute("SELECT SUM(revenue), COUNT(*) FROM valid_sales").fetchone()
+        product = conn.execute("SELECT product, SUM(revenue) FROM valid_sales "
+                               "GROUP BY product ORDER BY 2 DESC LIMIT 1").fetchone()
+        region = conn.execute("SELECT region, SUM(revenue) FROM valid_sales "
+                              "GROUP BY region ORDER BY 2 DESC LIMIT 1").fetchone()
+    finally:
+        conn.close()
+
+    assert (body["total_revenue"], body["transactions"]) == (total, count) == (1439200.0, 48)
+    assert (body["top_product"]["names"], body["top_product"]["revenue"]) == ([product[0]], product[1])
+    assert (body["top_region"]["names"], body["top_region"]["revenue"]) == ([region[0]], region[1])
+    assert body["top_product"]["share_pct"] == round(product[1] / total * 100, 2) == 32.87
+    assert body["top_region"]["share_pct"] == round(region[1] / total * 100, 2) == 28.57
+    assert body["best_month"]["label"] == "May 2026"
+    assert body["data_quality"]["valid_rows"] == 48
+
+
+
+def test_summary_rankings_match_direct_sql(client_for, db_path):
+    build_database(CSV_PATH, db_path)
+    body = client_for(db_path).get("/summary").json()
+    conn = sqlite3.connect(db_path)
+    try:
+        products = conn.execute("SELECT product, SUM(revenue), COUNT(*) FROM valid_sales "
+                                "GROUP BY product ORDER BY 2 DESC, 1").fetchall()
+        regions = conn.execute("SELECT region, SUM(revenue), COUNT(*) FROM valid_sales "
+                               "GROUP BY region ORDER BY 2 DESC, 1").fetchall()
+    finally:
+        conn.close()
+    assert [(r["name"], r["revenue"], r["transactions"]) for r in body["product_ranking"]] == products
+    assert [(r["name"], r["revenue"], r["transactions"]) for r in body["region_ranking"]] == regions
+    assert len(body["product_ranking"]) == 7
+    assert [r["name"] for r in body["region_ranking"]] == ["South", "North", "East", "West"]

@@ -15,6 +15,12 @@ TIMEOUT_SECONDS = 15
 
 ASK_FIELDS = {"question", "intent", "answer", "data", "chart_type", "data_quality"}
 DATA_QUALITY_FIELDS = {"total_rows", "valid_rows", "excluded_rows", "excluded"}
+SUMMARY_FIELDS = {"total_revenue", "transactions", "top_product", "top_region",
+                  "best_month", "weakest_month", "monthly_trend", "product_ranking",
+                  "region_ranking", "data_quality"}
+TRANSACTION_FIELDS = {"matching", "matching_valid", "matching_excluded", "matching_revenue",
+                      "transactions"}
+FILTER_FIELDS = {"regions", "products", "statuses", "months"}
 
 
 @dataclass
@@ -25,12 +31,14 @@ class ApiResult:
     suggestions: list[str] = field(default_factory=list)  # shown for unsupported questions
 
 
-def _call(method: str, path: str, base_url: str, payload: dict | None = None) -> ApiResult:
+def _call(method: str, path: str, base_url: str, payload: dict | None = None,
+          params: dict | None = None) -> ApiResult:
     """Send one request and translate every kind of failure into an ApiResult."""
     try:
-        response = requests.request(
-            method, f"{base_url}{path}", json=payload, timeout=TIMEOUT_SECONDS
-        )
+        kwargs = {"json": payload, "timeout": TIMEOUT_SECONDS}
+        if params:
+            kwargs["params"] = params
+        response = requests.request(method, f"{base_url}{path}", **kwargs)
     except requests.ConnectionError:
         return ApiResult(
             ok=False,
@@ -60,7 +68,9 @@ def _call(method: str, path: str, base_url: str, payload: dict | None = None) ->
             suggestions=detail.get("supported_questions", []),
         )
     if response.status_code == 422:
-        return ApiResult(ok=False, error="Please type a question (up to 500 characters).")
+        if path == "/ask":
+            return ApiResult(ok=False, error="Please type a question (up to 500 characters).")
+        return ApiResult(ok=False, error="One of the filter values is not valid.")
     if response.status_code in (404, 503) and isinstance(detail, str):
         return ApiResult(ok=False, error=detail)
     return ApiResult(
@@ -86,3 +96,18 @@ def ask_question(question: str, base_url: str = API_URL) -> ApiResult:
 
 def get_data_quality(base_url: str = API_URL) -> ApiResult:
     return _require_fields(_call("GET", "/data-quality", base_url), DATA_QUALITY_FIELDS)
+
+
+def get_summary(base_url: str = API_URL) -> ApiResult:
+    return _require_fields(_call("GET", "/summary", base_url), SUMMARY_FIELDS)
+
+
+def get_transactions(filters: dict, base_url: str = API_URL) -> ApiResult:
+    """Filtered transactions. Blank/None filter values are not sent."""
+    params = {k: v for k, v in filters.items() if v not in (None, "")}
+    return _require_fields(_call("GET", "/transactions", base_url, params=params),
+                           TRANSACTION_FIELDS)
+
+
+def get_filter_options(base_url: str = API_URL) -> ApiResult:
+    return _require_fields(_call("GET", "/transactions/filters", base_url), FILTER_FIELDS)

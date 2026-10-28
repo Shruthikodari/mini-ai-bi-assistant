@@ -1,0 +1,397 @@
+/* Sales Intelligence: visual styles.
+   Base colours, font and radii come from .streamlit/config.toml.
+   This file adds layout, typography details and component styling.
+   Elements are targeted through Streamlit's stable `st-key-<key>` classes
+   wherever possible. */
+
+:root {
+  --navy: #142B46;        /* headings */
+  --text: #172B4D;        /* body text */
+  --blue: #2563EB;        /* primary accent */
+  --blue-hover: #1D4ED8;
+  --blue-soft: #DBEAFE;   /* light blue */
+  --blue-tint: #EFF6FF;
+  --slate: #64748B;       /* secondary text */
+  --border: #E2E8F0;
+  --surface: #FFFFFF;
+  --page: #F8FAFC;
+  --danger-tint: #FEF2F2;
+  --danger-text: #B42318;
+  --radius: 12px;
+}
+
+/* ---------- page frame ---------- */
+.block-container {
+  max-width: 1200px;
+  padding: 4.5rem 2.5rem 4rem;
+}
+[data-testid="stVerticalBlock"] { gap: 1rem; }
+/* Line the top navigation up with the content column (max-width 1200px). */
+@media (min-width: 641px) {
+  [data-testid="stToolbar"] {
+    padding-left: max(calc(2rem - 8px), calc((100vw - 1200px) / 2 + 2rem - 8px));
+  }
+}
+[data-testid="stVerticalBlockBorderWrapper"] { border-radius: var(--radius); }
+
+/* ---------- typography ---------- */
+h1 {
+  font-size: 2.125rem !important;      /* 34px */
+  font-weight: 600 !important;
+  letter-spacing: -0.025em;
+  line-height: 1.15 !important;
+  padding: 0 !important;
+  color: var(--navy);
+}
+.subtitle {
+  color: var(--slate);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0.375rem 0 0.5rem;
+}
+.section-label {
+  color: var(--slate);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0.75rem 0 0;
+}
+.card-title {
+  color: var(--navy);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+[data-testid="stWidgetLabel"] p {
+  font-size: 0.8125rem !important;
+  font-weight: 500;
+  color: var(--navy);
+}
+[data-testid="stCaptionContainer"],
+[data-testid="stCaptionContainer"] p {
+  font-size: 0.8125rem;
+  color: var(--slate);
+  line-height: 1.55;
+}
+
+/* ---------- metrics inside answers (tabular numbers) ---------- */
+[data-testid="stMetricLabel"] p { font-size: 0.8125rem !important; font-weight: 500; color: var(--slate); }
+[data-testid="stMetricValue"] {
+  font-size: 1.625rem !important;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+}
+[data-testid="stMetricDelta"] { font-variant-numeric: tabular-nums; font-size: 0.8125rem; }
+
+/* ---------- search card (visually dominant) ---------- */
+.st-key-ask_card {
+  background: var(--surface);
+  padding: 1.5rem 1.5rem 1.125rem !important;
+}
+.st-key-ask_card [data-testid="stWidgetLabel"] p { font-size: 0.9375rem !important; font-weight: 600; }
+.st-key-ask_card [data-baseweb="input"] { height: 3rem; }
+.st-key-ask_card input { font-size: 1rem; }
+.st-key-ask_card [data-testid="stFormSubmitButton"] button {
+  height: 3rem;
+  min-height: 3rem;
+  background: var(--blue);
+  border: 1px solid var(--blue);
+  color: #FFFFFF;
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+.st-key-ask_card [data-testid="stFormSubmitButton"] button:hover {
+  background: var(--blue-hover);
+  border-color: var(--blue-hover);
+  color: #FFFFFF;
+}
+.st-key-ask_card [data-testid="stFormSubmitButton"] button p { white-space: nowrap; }
+.st-key-ask_card [data-testid="stForm"] { padding: 0; border: none; }
+/* Fixed-width Analyze column so the label never wraps. */
+@media (min-width: 641px) {
+  .st-key-ask_card [data-testid="stForm"] [data-testid="stHorizontalBlock"] { flex-wrap: nowrap; }
+  .st-key-ask_card [data-testid="stForm"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+  .st-key-ask_card [data-testid="stForm"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:last-child {
+    flex: 0 0 8.5rem !important;
+    width: 8.5rem !important;
+    min-width: 8.5rem !important;
+  }
+}
+
+/* ---------- suggested questions: equal-height controls ---------- */
+.st-key-suggestions [data-testid="stHorizontalBlock"] { gap: 0.5rem; }
+.st-key-suggestions button {
+  height: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0 0.75rem;
+  background: var(--page);
+  border: 1px solid var(--border);
+  color: var(--navy);
+}
+.st-key-suggestions button p {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.st-key-suggestions button:hover {
+  border-color: var(--blue);
+  color: var(--blue);
+  background: var(--surface);
+}
+
+/* ---------- answer card ---------- */
+.st-key-latest_result {
+  background: var(--surface);
+  padding: 1.5rem 1.5rem 1.25rem !important;
+}
+.question-echo { color: var(--slate); font-size: 0.8125rem; margin-bottom: 0.625rem; }
+.intent-label {
+  display: inline-block;
+  color: var(--blue);
+  background: var(--blue-soft);
+  border-radius: 999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.625rem;
+}
+.answer {
+  font-size: 1.1875rem;
+  font-weight: 500;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  color: var(--navy);
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0.75rem;
+}
+.formula {
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue);
+  border-radius: 8px;
+  padding: 0.625rem 0.75rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--navy);
+}
+
+/* ---------- KPI cards (one CSS grid => equal heights) ---------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.kpi {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.125rem;
+  min-width: 0;
+}
+.kpi-label { color: var(--slate); font-size: 0.8125rem; font-weight: 500; }
+.kpi-value {
+  color: var(--navy);
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+  margin: 0.25rem 0 0.125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-sub { color: var(--slate); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+
+/* ---------- overview cards ---------- */
+/* Same minimum height so the two cards line up side by side. */
+.st-key-overview_chart, .st-key-overview_insights {
+  background: var(--surface);
+  padding: 1.125rem 1.25rem !important;
+  min-height: 380px;
+}
+.insights { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+.insights li {
+  color: var(--navy);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  margin-bottom: 0.625rem;
+  font-variant-numeric: tabular-nums;
+}
+.insights li::marker { color: var(--blue); }
+
+/* ---------- empty state / expanders ---------- */
+.empty-state {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--slate);
+  font-size: 0.9375rem;
+  text-align: center;
+  padding: 2.25rem 1.5rem;
+}
+[data-testid="stExpander"] details { background: var(--surface); border-color: var(--border); }
+[data-testid="stExpander"] summary p { font-size: 0.875rem; font-weight: 500; }
+
+/* ---------- responsive ---------- */
+/* Laptop widths: answer chart and table stack; KPIs go to two columns. */
+@media (max-width: 1100px) {
+  [class*="st-key-figures_"] [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+  [class*="st-key-figures_"] [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .block-container { padding: 4.5rem 1rem 3rem; }
+  /* Suggestions become a two-column grid instead of five stacked rows. */
+  .st-key-suggestions [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+  .st-key-suggestions [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    flex: 1 1 calc(50% - 0.25rem) !important;
+    width: calc(50% - 0.25rem) !important;
+    min-width: calc(50% - 0.25rem) !important;
+  }
+  h1 { font-size: 1.75rem !important; }
+  .answer { font-size: 1.0625rem; }
+  .st-key-ask_card, .st-key-latest_result { padding: 1rem !important; }
+  [data-testid="stMetricValue"] { font-size: 1.375rem !important; }
+  .kpi-value { font-size: 1.25rem; }
+  .kpi-grid { gap: 0.75rem; }
+}
+
+/* ---------- navigation: blue active state ---------- */
+[data-testid="stTopNavLink"] { border-radius: 8px; }
+[data-testid="stTopNavLink"] span { color: var(--slate); font-weight: 500; }
+[data-testid="stTopNavLink"]:hover { background: var(--blue-tint); }
+[data-testid="stTopNavLink"]:hover span { color: var(--blue); }
+[data-testid="stTopNavLink"][aria-current="page"] { background: var(--blue-soft); }
+[data-testid="stTopNavLink"][aria-current="page"] span { color: var(--blue); font-weight: 600; }
+
+/* Secondary buttons: subtle blue hover */
+button[kind="secondary"]:hover { border-color: var(--blue); color: var(--blue); }
+
+/* ---------- dashboard cards ---------- */
+.card-subtitle { color: var(--slate); font-size: 0.8125rem; margin: -0.125rem 0 0.25rem; }
+[class*="st-key-an_"] { background: var(--surface); padding: 1.125rem 1.25rem !important; }
+/* Paired cards share a minimum height so rows line up. */
+.st-key-an_products, .st-key-an_regions { min-height: 400px; }
+.st-key-an_highlights, .st-key-an_quality { min-height: 490px; }
+
+.stat-rows { display: flex; flex-direction: column; }
+.stat-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-areas: "label value" "detail value";
+  align-items: center;
+  column-gap: 1rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.stat-row:last-child { border-bottom: none; }
+.stat-label { grid-area: label; color: var(--text); font-size: 0.875rem; font-weight: 500; }
+.stat-detail { grid-area: detail; color: var(--slate); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.stat-value {
+  grid-area: value;
+  justify-self: end;
+  text-align: right;
+  color: var(--navy);
+  font-size: 1rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- data explorer ---------- */
+.st-key-filters { background: var(--surface); padding: 1rem 1.25rem !important; }
+.result-count { color: var(--text); font-size: 0.875rem; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.result-count span { color: var(--slate); font-size: 0.8125rem; }
+.st-key-results_bar [data-testid="stDownloadButton"] button {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #FFFFFF;
+}
+.st-key-results_bar [data-testid="stDownloadButton"] button:hover {
+  background: var(--blue-hover);
+  border-color: var(--blue-hover);
+  color: #FFFFFF;
+}
+
+@media (max-width: 1100px) {
+  /* Filter toolbar wraps into rows of three on laptop widths. */
+  .st-key-filters [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+  .st-key-filters [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    flex: 1 1 calc(33.3% - 1rem) !important;
+    width: calc(33.3% - 1rem) !important;
+    min-width: calc(33.3% - 1rem) !important;
+  }
+  .st-key-results_bar [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+  .st-key-results_bar [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+}
+@media (max-width: 640px) {
+  .st-key-an_products, .st-key-an_regions,
+  .st-key-an_highlights, .st-key-an_quality { min-height: 0; }
+}
+
+/* ---------- transaction table ---------- */
+.st-key-tx_table [data-testid="stTable"] {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.st-key-tx_table table { width: max-content; min-width: 100%; border-collapse: collapse; }
+.st-key-tx_table, .st-key-tx_table [data-testid="stTable"] { overflow-x: auto !important; }
+.st-key-tx_table th, .st-key-tx_table td {
+  padding: 0.3rem 0.4rem !important;
+  border-color: var(--border) !important;
+  vertical-align: middle;
+}
+/* Streamlit wraps each cell's text in a markdown <p>; style that text. */
+.st-key-tx_table th p, .st-key-tx_table td p {
+  font-size: 0.8125rem !important;
+  line-height: 1.35 !important;
+  margin: 0 !important;
+  padding: 0.45rem 0.1rem;
+  white-space: nowrap;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  font-variant-numeric: tabular-nums;
+}
+.st-key-tx_table thead th { background: #F1F5F9 !important; }
+.st-key-tx_table thead th p { color: var(--slate) !important; font-weight: 500 !important; }
+.st-key-tx_table tbody th p { color: var(--navy) !important; font-weight: 500 !important; }
+.st-key-tx_table td p { color: var(--text); }
+/* The Data Quality column may wrap so long exclusion reasons stay readable. */
+.st-key-tx_table td:last-child p { white-space: normal; min-width: 9rem; }
+
+/* Hint shown only where the 12-column table needs horizontal scrolling. */
+.scroll-hint { display: none; color: var(--slate); font-size: 0.75rem; }
+@media (max-width: 1180px) { .scroll-hint { display: block; } }
+
+@media (max-width: 640px) {
+  /* Filters: search on its own row, then two per row. */
+  .st-key-filters [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+    flex: 1 1 calc(50% - 0.5rem) !important;
+    width: calc(50% - 0.5rem) !important;
+    min-width: calc(50% - 0.5rem) !important;
+  }
+  .st-key-filters [data-testid="stHorizontalBlock"] > [data-testid="stColumn"]:first-child {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    min-width: 100% !important;
+  }
+}

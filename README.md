@@ -2,7 +2,7 @@
 
 Ask business questions about a sales CSV in plain English and get answers backed by real SQL queries.
 
-![Monthly revenue trend](docs/screenshots/monthly_trend.png)
+![Ask AI home page](docs/screenshots/home.png)
 
 Built for a Graduate Engineer Trainee selection challenge with Python, FastAPI, SQLite, Pandas, Streamlit and Pytest.
 
@@ -14,8 +14,11 @@ Built for a Graduate Engineer Trainee selection challenge with Python, FastAPI, 
 - **Data cleaning and validation with Pandas.** It handles returned orders, zero quantities, missing prices, fixed-amount discounts and several date formats. No record is deleted or changed; invalid rows are flagged with a reason.
 - **Data transparency.** Every answer reports how many records were used and excluded. The UI lists each excluded transaction and why it was excluded.
 - **FastAPI backend** with Pydantic validation and clear HTTP errors (400 / 404 / 422 / 503).
-- **Streamlit dashboard** with suggested questions, a session history, headline figures, tables, and line/bar charts.
-- **142 automated tests** covering cleaning, the database, analytics, the interpreter, the API and the UI.
+- **Three-section Streamlit workspace** (blue theme, top navigation):
+  - **Ask AI** (home): question box, five suggested questions, answers with charts and supporting figures, a "How this answer was calculated" section, session history, KPI cards, a monthly revenue chart and factual business insights.
+  - **Analytics**: KPI cards, monthly revenue trend with a table, all seven products ranked, the four regions compared (exact values on every bar), business highlights and a data-quality summary.
+  - **Data Explorer**: all 51 original transactions (valid and excluded) with search, region/product/status/month filters, sorting, pagination, highlighted excluded rows with their reasons, and CSV export of the filtered records.
+- **196 automated tests** covering cleaning, the database, analytics, the interpreter, the API, transaction browsing and all three UI pages.
 
 ## Technology stack
 
@@ -23,7 +26,7 @@ Built for a Graduate Engineer Trainee selection challenge with Python, FastAPI, 
 |---|---|---|
 | Data cleaning | Pandas 2.3 | Read the CSV, convert types, flag invalid rows |
 | Storage and analytics | SQLite (Python built-in `sqlite3`) | `sales` table, `valid_sales` view, SQL aggregations |
-| Backend API | FastAPI 0.115 + Uvicorn + Pydantic | `/health`, `/ask`, `/data-quality` |
+| Backend API | FastAPI 0.115 + Uvicorn + Pydantic | `/health`, `/ask`, `/summary`, `/data-quality`, `/transactions` |
 | Frontend | Streamlit 1.48 + Altair (bundled with Streamlit) | Dashboard UI and charts |
 | HTTP client | requests | Streamlit → FastAPI calls |
 | Testing | Pytest, FastAPI `TestClient`, Streamlit `AppTest` | Automated tests |
@@ -35,14 +38,21 @@ mini-ai-bi-assistant/
 ├── backend/
 │   ├── data_cleaning.py     # Pandas: load CSV, validate rows, flag invalid ones
 │   ├── database.py          # SQLite: build sales table + valid_sales view
-│   ├── analytics.py         # The five fixed SQL analytics operations
+│   ├── analytics.py         # Fixed SQL analytics operations + dashboard summary
+│   ├── transactions.py      # Read-only, parameterised transaction browsing
 │   ├── question_parser.py   # Rule-based natural-language interpreter
 │   └── main.py              # FastAPI app
 ├── ui/
-│   ├── streamlit_app.py     # Streamlit page
+│   ├── streamlit_app.py     # Entry point: page setup + top navigation
+│   ├── views/
+│   │   ├── ask.py           # Ask AI (home)
+│   │   ├── analytics.py     # Analytics dashboard
+│   │   └── explorer.py      # Data Explorer
+│   ├── components.py        # Shared UI building blocks (cards, answers, KPIs)
 │   ├── api_client.py        # HTTP calls to FastAPI + friendly error messages
-│   └── presentation.py      # Turns API data into tables and charts (no calculations)
-├── tests/                   # Pytest suite (142 tests)
+│   ├── presentation.py      # Turns API data into tables and charts (no calculations)
+│   └── styles.css           # Visual styling (layout, typography, components)
+├── tests/                   # Pytest suite (196 tests)
 ├── data/
 │   ├── sales.csv            # Source data (never modified by the app)
 │   └── sales.db             # Generated SQLite database (git-ignored)
@@ -51,7 +61,7 @@ mini-ai-bi-assistant/
 │   ├── AI_DEVELOPMENT_REPORT.md
 │   ├── INTERVIEW_NOTES.md
 │   └── screenshots/
-├── .streamlit/config.toml   # Theme, and hides error details from users
+├── .streamlit/config.toml   # Theme (colours, Inter font, radii), hides error details
 ├── run_app.bat              # Starts API + UI (Windows)
 ├── start_api.bat
 ├── start_ui.bat
@@ -151,16 +161,17 @@ set BI_API_URL=http://127.0.0.1:9000
 python -m pytest
 ```
 
-Expected result: `142 passed`. The tests build temporary databases, so they never touch `data/sales.db`. They do read the real `data/sales.csv` to check the actual figures.
+Expected result: `196 passed`. The tests build temporary databases, so they never touch `data/sales.db`. They do read the real `data/sales.csv` to check the actual figures.
 
 | Test file | Tests | Covers |
 |---|---|---|
 | `test_data_cleaning.py` | 22 | Date parsing, every invalid-row rule, duplicates, real CSV profile |
 | `test_database.py` | 7 | Loading, `valid_sales` view, revenue formula, NULL prices, rebuilds |
-| `test_analytics.py` | 18 | All five operations, ties, zero-revenue months, missing months, real figures |
+| `test_analytics.py` | 20 | All five operations, ties, zero-revenue months, missing months, dashboard summary, real figures |
 | `test_question_parser.py` | 41 | ~20 phrasings, month/year extraction, typos, error cases |
-| `test_api.py` | 19 | Every endpoint and status code, SQL text in questions, missing database |
-| `test_frontend.py` | 35 | API client errors, chart/table helpers, the Streamlit page via `AppTest` |
+| `test_api.py` | 23 | Every endpoint and status code, SQL text in questions, missing database, `/summary` vs direct SQL |
+| `test_transactions.py` | 30 | Filters, search, combined filters, sorting, pagination, invalid rows, parameter validation, SQL text in filters |
+| `test_frontend.py` | 53 | API client errors, chart/table helpers, CSV export, and all three pages via `AppTest` |
 
 ## Example questions
 
@@ -200,6 +211,61 @@ Interactive Swagger docs are available at http://127.0.0.1:8000/docs while the A
   ]
 }
 ```
+
+### `GET /summary`
+
+Dashboard figures used by the Ask AI overview and the Analytics page. It reuses the analytics functions; nothing extra is calculated except each leader's share of total revenue.
+
+```json
+{
+  "total_revenue": 1439200.0,
+  "transactions": 48,
+  "top_product": {"names": ["Monitor"], "revenue": 473000.0, "share_pct": 32.87},
+  "top_region":  {"names": ["South"],   "revenue": 411200.0, "share_pct": 28.57},
+  "best_month":    {"month": "2026-05", "label": "May 2026", "revenue": 318500.0, "transactions": 8},
+  "weakest_month": {"month": "2026-01", "label": "January 2026", "revenue": 210250.0, "transactions": 8},
+  "monthly_trend":   ["... one entry per month ..."],
+  "product_ranking": [{"name": "Monitor", "revenue": 473000.0, "transactions": 9}, "..."],
+  "region_ranking":  [{"name": "South", "revenue": 411200.0, "transactions": 13}, "..."],
+  "data_quality": {"total_rows": 51, "valid_rows": 48, "excluded_rows": 3, "excluded": ["..."]}
+}
+```
+
+### `GET /transactions`
+
+Browse every original transaction, valid and excluded. All parameters are optional.
+
+| Parameter | Rules | Meaning |
+|---|---|---|
+| `search` | ≤ 50 chars | Case-insensitive match on transaction ID or product (`%` and `_` are literal) |
+| `region`, `product`, `status` | ≤ 50 chars | Exact match |
+| `month` | `YYYY-MM` | Order month |
+| `sort` | `order_date`, `transaction_id`, `product`, `region`, `quantity`, `unit_price`, `revenue`, `status` | Sort column (default `order_date`) |
+| `order` | `asc` / `desc` | Sort direction; missing values always sort last |
+| `limit`, `offset` | 1–500, ≥ 0 | Pagination (default 25, 0) |
+
+Example: `GET /transactions?month=2026-04&product=Keyboard`
+
+```json
+{
+  "matching": 2, "matching_valid": 1, "matching_excluded": 1, "matching_revenue": 18900.0,
+  "limit": 25, "offset": 0,
+  "transactions": [
+    {"transaction_id": "TXN0029", "order_date_raw": "14-04-2026", "quantity": 21, "unit_price": 900.0,
+     "discount_amount": 0.0, "status": "Completed", "is_valid": true, "invalid_reason": null,
+     "revenue": 18900.0, "...": "..."},
+    {"transaction_id": "TXN0034", "order_date_raw": "28-04-2026", "quantity": 0, "unit_price": 900.0,
+     "discount_amount": 0.0, "status": "Completed", "is_valid": false,
+     "invalid_reason": "quantity is zero or negative", "revenue": null, "...": "..."}
+  ]
+}
+```
+
+`revenue` is `null` for excluded rows: it comes from the `valid_sales` view, so returned or invalid records are never counted. Invalid parameters return 422.
+
+### `GET /transactions/filters`
+
+Distinct values for the explorer dropdowns: `regions`, `products`, `statuses` and `months`.
 
 ### `POST /ask`
 
@@ -291,8 +357,11 @@ Revenue = Quantity × Unit_price − Discount_amount
 - **A missing discount** makes the row invalid instead of being assumed to be 0. The current CSV has no missing discounts.
 - **The database is not rebuilt automatically** when the CSV changes. Run `python -m backend.database` again.
 - **No authentication or multi-user features.** It is designed to run locally.
-- **Question history** lasts only for the current browser session.
-- **The UI was checked only on a desktop-width browser (1440 px).** The mobile layout and other browsers have not been checked.
+- **Question history** lasts only for the current browser session. Earlier answers in the history omit the calculation section (Streamlit does not allow an expander inside another expander).
+- **Data Explorer table:** sorting and paging are done by the API through the "Sort by" and page controls; the table itself is static, so column headers are not clickable. On laptop and phone widths the 12-column table scrolls sideways.
+- **CSV export** is limited to 500 rows (the API's maximum page size); the dataset has 51.
+- **The UI layout was checked only in headless Chrome** at desktop (1440 px), laptop (1024 px) and phone (390 px) widths. It has not been tested on real mobile devices or other browsers.
+- **The Inter font loads from a CDN (jsDelivr).** Without internet access, the UI falls back to the system sans-serif font.
 - **Scale.** It is designed and tested for a small dataset (51 rows). Larger datasets would work with SQLite, but performance has not been measured.
 
 ## Further documentation

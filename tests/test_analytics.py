@@ -159,3 +159,25 @@ def test_real_compare_march_april(real_conn):
     assert [m["revenue"] for m in result["months"]] == [223900.0, 240700.0]
     assert result["difference"] == 16800.0
     assert result["percent_change"] == 7.5
+
+
+# ---------- dashboard summary ----------
+
+def test_revenue_share():
+    assert analytics.revenue_share(290, 420) == 69.05
+    assert analytics.revenue_share(0, 0) is None
+
+
+def test_dashboard_summary_with_ties_and_no_sales(make_db, connect):
+    tie = connect(make_db([
+        "A1,10-01-2026,Desk,Furniture,North,Online,1,100,0,Completed",
+        "A2,10-01-2026,Chair,Furniture,South,Online,2,50,0,Completed",
+    ]))
+    summary = analytics.dashboard_summary(tie)
+    assert summary["top_product"] == {"names": ["Chair", "Desk"], "revenue": 100.0, "share_pct": 50.0}
+
+    empty = connect(make_db(["A1,10-01-2026,Desk,Furniture,North,Online,1,100,0,Returned"]))
+    summary = analytics.dashboard_summary(empty)
+    assert summary["total_revenue"] == 0.0
+    assert summary["top_product"] == {"names": [], "revenue": 0.0, "share_pct": None}
+    assert summary["best_month"]["revenue"] == 0.0

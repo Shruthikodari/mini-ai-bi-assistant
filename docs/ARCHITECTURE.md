@@ -9,16 +9,21 @@ flowchart LR
     CSV[("data/sales.csv")] -->|read as text| PANDAS["Pandas cleaning<br/>backend/data_cleaning.py"]
     PANDAS -->|typed + flagged rows| DB[("SQLite<br/>sales table<br/>valid_sales view")]
     DB -->|fixed SQL queries| ANALYTICS["Analytics<br/>backend/analytics.py"]
+    DB -->|parameterised filters| TX["Transaction browsing<br/>backend/transactions.py"]
     PARSER["Question interpreter<br/>backend/question_parser.py"] -->|intent + months| API
-    ANALYTICS --> API["FastAPI<br/>backend/main.py"]
-    API <-->|HTTP JSON| UI["Streamlit UI<br/>ui/streamlit_app.py"]
-    USER((User)) -->|question| UI
+    ANALYTICS --> API["FastAPI<br/>backend/main.py<br/>/ask /summary /data-quality<br/>/transactions"]
+    TX --> API
+    API <-->|HTTP JSON| UI["Streamlit UI<br/>Ask AI · Analytics · Data Explorer"]
+    USER((User)) --> UI
 ```
 
 There are two separate phases:
 
 1. **Build time** (`python -m backend.database`): CSV → Pandas → SQLite. This runs once, or whenever the CSV changes.
-2. **Question time** (every `/ask` request): Streamlit → FastAPI → interpreter → fixed SQL query → answer.
+2. **Request time:** each page calls FastAPI over HTTP.
+   - Ask AI: `/ask` → interpreter → one fixed SQL query → answer; `/summary` for the KPIs below it.
+   - Analytics: `/summary`.
+   - Data Explorer: `/transactions/filters`, `/transactions` and `/data-quality`.
 
 ## The data pipeline step by step
 
@@ -44,7 +49,7 @@ Two database objects are created:
 CREATE TABLE sales (... every CSV row, plus is_valid and invalid_reason ...);
 
 CREATE VIEW valid_sales AS
-SELECT transaction_id, order_date,
+SELECT source_row, transaction_id, order_date,
        strftime('%Y-%m', order_date) AS order_month,
        product, category, region, sales_channel,
        quantity, unit_price, discount_amount,
@@ -57,6 +62,7 @@ WHERE is_valid = 1;
 - Missing values become SQL `NULL`, never `0`.
 - Rebuilding drops and recreates the table and view inside a transaction, so running it twice never creates duplicate rows.
 - **Why a view:** the revenue formula and the "only valid rows" rule live in exactly one place. Every analytics query reads `valid_sales`, so none of them can forget to exclude returned orders.
+- `source_row` (the CSV line number) is included so the Data Explorer can join each original row to its revenue. Excluded rows simply find no match, so their revenue is `NULL`. The formula is never written a second time.
 
 ### 3. SQL analytics (`backend/analytics.py`)
 
@@ -66,6 +72,15 @@ WHERE is_valid = 1;
 | `top_product` / `top_region` | `GROUP BY product/region ORDER BY revenue DESC`. All leaders are returned, so ties are reported. |
 | `monthly_revenue_trend` | `GROUP BY order_month`. Python then fills every month between the first and last record, so a month with no valid sales shows as `0` instead of disappearing. |
 | `compare_months` | `WHERE order_month = ?` for each month. It raises `NoDataError` if a month has no records at all, and returns `percent_change = None` when the baseline is zero. The earlier month is always the baseline. |
+| `dashboard_summary` | Calls the functions above and adds each leader's share of total revenue (`revenue_share`). Used by `/summary`. |
+
+### 3b. Transaction browsing (`backend/transactions.py`)
+
+- `search_transactions` returns every row of `sales` (valid and excluded) with optional filters, sorting and paging, plus totals for the matching rows.
+- `FROM sales s LEFT JOIN valid_sales v ON v.source_row = s.source_row` gives valid rows their revenue and leaves excluded rows at `NULL`. The matching-revenue total is `SUM(v.revenue)`, so excluded rows can never be counted.
+- Each filter adds a fixed condition string with a `?` placeholder (for example `s.region = ?`). Search uses `LIKE ? ESCAPE '!'`, after escaping `%` and `_`, so user text matches literally.
+- The sort column comes from the `SORT_COLUMNS` dictionary and the direction from `asc`/`desc`. Anything else raises `ValueError`, and FastAPI already rejects it with 422.
+- `filter_options` returns the distinct regions, products, statuses and months for the dropdowns.
 
 ### 4. FastAPI (`backend/main.py`)
 
@@ -73,12 +88,19 @@ WHERE is_valid = 1;
 - `get_db` is a FastAPI dependency that opens the database **read-only** for one request and always closes it.
 - `ask` looks up which years the data covers, calls the interpreter, sends the intent to one answer function, and returns a fixed response shape: `question`, `intent`, `answer`, `data`, `chart_type`, `data_quality`.
 - The human-readable sentence is built in the backend, so every client gets the same wording.
+- `/summary` and `/data-quality` are plain read-only GET endpoints.
+- `/transactions` validates every query parameter with FastAPI: text filters are at most 50 characters, `month` must match `YYYY-MM`, `sort` and `order` must be in a fixed list, `limit` is 1–500 and `offset` is ≥ 0. Anything else is a 422 error.
 
 ### 5. Streamlit (`ui/`)
 
 - `api_client.py` is the **only** place the UI talks to the backend, using `requests`. It turns every failure (server down, timeout, invalid JSON, 400/404/422/503/500) into an `ApiResult` with a friendly message.
-- `presentation.py` reshapes API data into headline figures, tables and Altair charts. It does **not** recalculate anything.
-- `streamlit_app.py` holds the layout and session state (question history).
+- `presentation.py` reshapes API data into headline figures, tables, Altair charts and the explorer CSV. It does **not** recalculate anything.
+- `streamlit_app.py` is the entry point. It sets up the page and registers three pages with Streamlit's built-in `st.navigation` (top position):
+  - `views/ask.py`: the Ask AI home page. Question box, suggested questions, answer with chart, figures and a "How this answer was calculated" section, history, KPI cards, monthly chart and factual insights.
+  - `views/analytics.py`: the Analytics dashboard. KPIs, monthly trend and table, product and region rankings with exact value labels, highlights and the data-quality summary.
+  - `views/explorer.py`: the Data Explorer. Filter toolbar, sorting, pagination, a static table with "Missing" / "Not counted" labels and highlighted excluded rows, CSV export of the filtered records (fetched again without paging), and data-quality details.
+- `components.py` holds the shared pieces: page header, KPI grid, answer card, calculation section and data-quality card.
+- `styles.css` plus `.streamlit/config.toml` define the blue design system (navy `#142B46`, royal blue `#2563EB`, light blue `#DBEAFE`, page `#F8FAFC`, borders `#E2E8F0`, 12px radii, Inter font).
 - `.streamlit/config.toml` sets `showErrorDetails = "none"`, so Python tracebacks never reach the browser. A final `try/except` around `main()` shows a friendly message if something unexpected happens.
 
 ## The natural-language interpreter
@@ -116,8 +138,8 @@ The output is a `ParsedQuestion(intent, months, error)`. Months are validated `Y
 | Risk | How it is prevented |
 |---|---|
 | User text reaching SQL | User text never becomes SQL. The interpreter only outputs one of five intent names and validated `YYYY-MM` strings. |
-| Values inside queries | Month values are passed as bound `?` parameters (`WHERE order_month = ?`), never by string formatting. |
-| Column names in `GROUP BY` | Column names cannot be bound parameters, so `_revenue_ranking` accepts only `"product"` or `"region"` from a hard-coded whitelist and raises `ValueError` for anything else. The value is chosen by code, never by the user. |
+| Values inside queries | Month values and every Data Explorer filter are passed as bound `?` parameters, never by string formatting. Search text has `%`/`_` escaped so it matches literally. |
+| Column names in `GROUP BY` / `ORDER BY` | Column names cannot be bound parameters. `_revenue_ranking` accepts only `"product"` or `"region"`, and the explorer's sort column comes from the `SORT_COLUMNS` whitelist. FastAPI also validates `sort`/`order` against fixed lists. |
 | LLM-generated SQL | Not used at all. No SQL is generated at run time. |
 | The API changing data | The API opens SQLite with a `file:...?mode=ro` URI, so even a bug could not write to the database. A missing file returns 503 instead of silently creating an empty database. |
 | Loading data | The build script uses `executemany` with `?` placeholders. |
@@ -162,4 +184,7 @@ Tests check this directly:
 - **Hand-written fixture data** (`tests/conftest.py`): 11 rows, one per edge case, with expected revenue worked out by hand (2×100−0, 3×50−20, 1×100−10 = 420). This is clearly labelled as test data, not sales data.
 - **Real-data checks:** the actual `data/sales.csv` figures were first cross-checked with a separate Pandas calculation (not using the project's code), then fixed in tests as regression checks.
 - **API tests** use FastAPI's `TestClient`, with the database path swapped through `app.dependency_overrides`.
-- **UI tests** use Streamlit's `AppTest`. The page's HTTP calls are routed to the real FastAPI app, so a single test exercises Streamlit → api_client → FastAPI → SQLite.
+- **UI tests** use Streamlit's `AppTest`. The page's HTTP calls are routed to the real FastAPI app, so a single test exercises Streamlit → api_client → FastAPI → SQLite. The Analytics and Data Explorer pages are rendered on their own and driven through their widgets (filters, search, sort, page, reset).
+- **Transaction tests** (`test_transactions.py`) cover each filter, combined filters, search escaping, SQL text in filter values, sorting with missing values last, pagination, invalid parameters (422) and the real data's excluded rows.
+- **Dashboard figures** (`/summary` totals, leaders, shares and both rankings) are compared directly with SQL queries on `valid_sales`.
+- **Layout** was checked in headless Chrome at 1440, 1024 and 390px: page overflow, clipped text and the heights of paired cards were measured.

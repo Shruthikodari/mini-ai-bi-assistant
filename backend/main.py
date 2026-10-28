@@ -8,12 +8,12 @@ Run with:  uvicorn backend.main:app --reload
 
 import sqlite3
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel, StringConstraints
 
-from backend import analytics
+from backend import analytics, transactions
 from backend.database import DB_PATH, get_data_quality_summary
 from backend.question_parser import (
     COMPARE_MONTHS,
@@ -152,6 +152,48 @@ def health():
 @app.get("/data-quality")
 def data_quality(conn: sqlite3.Connection = Depends(get_db)):
     return get_data_quality_summary(conn)
+
+
+@app.get("/summary")
+def summary(conn: sqlite3.Connection = Depends(get_db)):
+    """Dashboard headline figures (read-only; reuses the analytics queries)."""
+    return {**analytics.dashboard_summary(conn), "data_quality": get_data_quality_summary(conn)}
+
+
+def _clean(value: str | None) -> str | None:
+    """Treat blank filter values as 'no filter'."""
+    value = (value or "").strip()
+    return value or None
+
+
+FilterText = Annotated[str | None, Query(max_length=50)]
+
+
+@app.get("/transactions")
+def list_transactions(
+    search: FilterText = None,
+    region: FilterText = None,
+    product: FilterText = None,
+    status: FilterText = None,
+    month: Annotated[str | None, Query(pattern=r"^\d{4}-\d{2}$")] = None,
+    sort: Literal[tuple(transactions.SORT_COLUMNS)] = "order_date",
+    order: Literal["asc", "desc"] = "asc",
+    limit: Annotated[int, Query(ge=1, le=500)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    conn: sqlite3.Connection = Depends(get_db),
+):
+    """Browse every transaction (valid and invalid) with optional filters (read-only)."""
+    return transactions.search_transactions(
+        conn, search=_clean(search), region=_clean(region), product=_clean(product),
+        status=_clean(status), month=month, sort=sort, order=order,
+        limit=limit, offset=offset,
+    )
+
+
+@app.get("/transactions/filters")
+def transaction_filters(conn: sqlite3.Connection = Depends(get_db)):
+    """Values available for the Data Explorer dropdowns."""
+    return transactions.filter_options(conn)
 
 
 @app.post("/ask", response_model=AskResponse)

@@ -1,10 +1,30 @@
 [theme]
 base = "light"
-primaryColor = "#0F766E"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F4F6F9"
-textColor = "#1E293B"
-font = "sans serif"
+primaryColor = "#2563EB"            # royal blue accent
+backgroundColor = "#F8FAFC"         # cool off-white page
+secondaryBackgroundColor = "#FFFFFF" # white input surfaces
+textColor = "#172B4D"               # primary text
+borderColor = "#E2E8F0"
+dataframeBorderColor = "#E2E8F0"
+dataframeHeaderBackgroundColor = "#F1F5F9"
+showWidgetBorder = true
+showSidebarBorder = true
+baseRadius = "12px"
+buttonRadius = "12px"
+
+# Inter (variable font, pinned version) with system-font fallbacks
+# if the CDN is unreachable.
+font = "Inter, sans-serif"
+baseFontSize = 15
+baseFontWeight = 400
+headingFontSizes = ["2.125rem", "1.125rem", "1rem", "0.9375rem", "0.875rem", "0.8125rem"]
+headingFontWeights = [600, 600, 600, 600, 600, 600]
+
+[[theme.fontFaces]]
+family = "Inter"
+url = "https://cdn.jsdelivr.net/npm/@fontsource-variable/inter@5.1.1/files/inter-latin-wght-normal.woff2"
+weight = "100 900"
+style = "normal"
 
 [client]
 # Never show Python tracebacks in the browser (they still go to the console).
